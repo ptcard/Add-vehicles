@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta http-equiv="content-type" content="text/html; charset=UTF-8">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PetroTrade — Cards Info</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f4f6f9; color: #1a1a1a; font-size: 15px; line-height: 1.6; }
+  .page-wrap { max-width: 1040px; margin: 2rem auto; padding: 0 1rem 4rem; }
+
+  .section { background: #ffffff; border: 1px solid #e0e4ea; border-radius: 12px; padding: 1.5rem 2rem; margin-bottom: 1.25rem; }
+  .section-title { font-size: 11px; font-weight: 600; color: #185FA5; margin-bottom: 1.25rem; padding-bottom: 10px; border-bottom: 1px solid #e8ecf0; text-transform: uppercase; letter-spacing: 1px; }
+
+  .field-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; }
+  .field { display: flex; flex-direction: column; gap: 5px; }
+  .field.full { grid-column: 1 / -1; }
+  .field label { font-size: 12px; color: #555; font-weight: 500; }
+  .field input, .field select, .field textarea {
+    font-size: 14px; padding: 9px 11px;
+    border: 1px solid #d0d5dd; border-radius: 8px;
+    background: #fafbfc; color: #1a1a1a; width: 100%;
+    outline: none; transition: border-color .15s, box-shadow .15s;
+  }
+  .field input:focus, .field select:focus, .field textarea:focus {
+    border-color: #378ADD; box-shadow: 0 0 0 3px rgba(55,138,221,0.15);
+  }
+  .required { color: #e24b4a; }
+
+  .table-wrapper { overflow-x: auto; }
+  table.data-table { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 13px; min-width: 560px; }
+  table.data-table th { background: #f0f4f8; color: #555; font-weight: 600; font-size: 11px; padding: 9px 6px; border: 1px solid #dde2ea; text-align: left; text-transform: uppercase; letter-spacing: .3px; word-break: break-word; overflow-wrap: break-word; hyphens: auto; }
+  #limitsTable { min-width: 780px; }
+  table.data-table td { padding: 4px 4px; border: 1px solid #dde2ea; }
+  table.data-table td input, table.data-table td select {
+    border: none; background: transparent; width: 100%;
+    font-size: 13px; color: #1a1a1a; padding: 6px 6px; outline: none; border-radius: 4px;
+  }
+  table.data-table td input:focus, table.data-table td select:focus { background: #EBF4FF; }
+  .add-row-btn { margin-top: 10px; font-size: 13px; padding: 7px 16px; border: 1px solid #c0c8d4; border-radius: 8px; background: transparent; color: #555; cursor: pointer; transition: background .15s; }
+  .add-row-btn:hover { background: #f0f4f8; }
+  .del-btn { background: none; border: none; color: #e24b4a; cursor: pointer; font-size: 18px; padding: 4px 6px; line-height: 1; border-radius: 4px; }
+  .del-btn:hover { background: #fdf0f0; }
+
+  @media (max-width: 600px) {
+    .section { padding: 1rem 1rem; }
+  }
+</style>
+</head>
+<body>
+<div class="page-wrap">
+
+  <!-- Cards Info -->
+  <div class="section">
+    <div class="section-title">2. Cards info</div>
+    <div class="field-grid">
+      <div class="field">
+        <label>Number of cards requested <span class="required">*</span></label>
+        <input type="number" id="f_num_cards" placeholder="e.g. 3" min="1" oninput="syncRowsToCardCount(this.value)">
+      </div>
+    </div>
+    <p style="font-size:13px;color:#666;margin:14px 0 10px">Add one row per vehicle or asset. Click <strong>+ Add row</strong> to include more.</p>
+    <div class="table-wrapper">
+      <table class="data-table" id="vehicleTable">
+        <thead>
+          <tr>
+            <th style="width:4%">#</th>
+            <th style="width:14%">Registration no. <span style="color:#e24b4a">*</span></th>
+            <th style="width:18%">Name or number (printed on card) <span style="color:#e24b4a">*</span></th>
+            <th style="width:16%">Card fuel type restriction</th>
+            <th style="width:14%">Fuel type</th>
+            <th style="width:16%">Vehicle model (optional)</th>
+            <th style="width:5%"></th>
+          </tr>
+        </thead>
+        <tbody id="tableBody">
+          <tr>
+            <td style="text-align:center;font-weight:500;color:#555;padding:6px 4px;">1</td>
+            <td><input type="text" placeholder="e.g. LR-1234" oninput="syncRegToLimits(this)"></td>
+            <td><input type="text" placeholder="Name or number"></td>
+            <td><select style="border:none;background:transparent;width:100%;font-size:13px;color:#1a1a1a;padding:6px"><option value="" selected="selected">-</option><option>Yes</option><option>No</option></select></td>
+            <td><select style="border:none;background:transparent;width:100%;font-size:13px;color:#1a1a1a;padding:6px"><option value="" selected="selected">—</option><option>Diesel</option><option>Gasoline</option></select></td>
+            <td><input type="text" placeholder="e.g. Toyota Hilux"></td>
+            <td><button class="del-btn" onclick="removeRow(this)">×</button></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <button class="add-row-btn" onclick="addRow()">+ Add row</button>
+    <p style="margin-top:12px;font-size:13px;color:#c0392b;line-height:1.6;"><strong>Note:</strong><br>Card
+ Fuel Restriction: Cards can only be used for the selected fuel type in
+the table. (Ex. If Yes is selected and Fuel Type is Gasoline, then the
+card can only be used for Gasoline)</p>
+    <p style="font-size:14px;font-weight:600;color:#1a1a1a;margin:18px 0 6px">Card limitations (Optional)</p>
+    <p style="font-size:12px;color:#666;margin-bottom:10px">Limitations can be set as Amount, Quantity, Transaction limit, or Location.</p>
+    <div class="table-wrapper">
+      <table class="data-table" id="limitsTable">
+        <thead>
+          <tr>
+            <th style="width:3%">#</th>
+            <th style="width:15%">Registration no.</th>
+            <th style="width:15%">Limit type</th>
+            <th style="width:14%">Location</th>
+            <th style="width:15%">Per transaction</th>
+            <th style="width:11%">Per day</th>
+            <th style="width:11%">Per week</th>
+            <th style="width:12%">Per month</th>
+            <th style="width:4%"></th>
+          </tr>
+        </thead>
+        <tbody id="limitsBody">
+          <tr data-row-index="0">
+            <td style="text-align:center;font-weight:500;color:#555;padding:6px 4px;">1</td>
+            <td><input type="text" placeholder="Auto-filled" readonly="readonly" style="background:#f0f4f8;color:#555;cursor:default;"></td>
+            <td><select onchange="toggleLocationField(this)" style="border:none;background:transparent;width:100%;font-size:13px;color:#1a1a1a;padding:6px"><option value="" selected="selected">None</option><option>Amount (US$)</option><option>Quantity (Gallons)</option><option>Transaction (No. of Trx.)</option><option>Location</option></select></td>
+            <td><select class="loc-select" disabled="disabled" style="border:none;background:transparent;width:100%;font-size:13px;color:#1a1a1a;padding:6px"><option value="" selected="selected">-- Select --</option><option>72ND Junction</option><option>9TH St. Sinkor</option><option>Battery Factory</option><option>Bong Mines Bridge</option><option>Clara Town</option><option>Coca Cola Factory</option><option>Duport Road</option><option>ELWA</option><option>Ganta</option><option>Gbarnga</option><option>Jacob Town</option><option>Klay</option><option>Lynch Street</option><option>R2</option><option>SD Cooper</option><option>Vamouma</option></select></td>
+            <td><input type="text" placeholder="0.00"></td>
+            <td><input type="text" placeholder="0.00"></td>
+            <td><input type="text" placeholder="0.00"></td>
+            <td><input type="text" placeholder="0.00"></td>
+            <td><button class="del-btn" onclick="removeLimitRow(this)">×</button></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <button class="add-row-btn" onclick="addLimitRow()">+ Add row</button>
+  </div>
+
+</div>
+
+<script>
+function addRow(){
+  const tb = document.getElementById('tableBody');
+  const rowNum = tb.querySelectorAll('tr').length + 1;
+  const tr = document.createElement('tr');
+  tr.innerHTML = `
+    <td style="text-align:center;font-weight:500;color:#555;padding:6px 4px;">${rowNum}</td>
+    <td><input type="text" placeholder="e.g. LR-1234" oninput="syncRegToLimits(this)"></td>
+    <td><input type="text" placeholder="Name or number"></td>
+    <td><select style="border:none;background:transparent;width:100%;font-size:13px;color:#1a1a1a;padding:6px"><option value="">-</option><option>Yes</option><option>No</option></select></td>
+    <td><select style="border:none;background:transparent;width:100%;font-size:13px;color:#1a1a1a;padding:6px"><option value="">—</option><option>Diesel</option><option>Gasoline</option></select></td>
+    <td><input type="text" placeholder="e.g. Toyota Hilux"></td>
+    <td><button class="del-btn" onclick="removeRow(this)">×</button></td>`;
+  tb.appendChild(tr);
+}
+
+function removeRow(btn){
+  const rows = document.querySelectorAll('#tableBody tr');
+  if(rows.length > 1) btn.closest('tr').remove();
+}
+
+function removeLimitRow(btn){
+  const rows = document.querySelectorAll('#limitsBody tr');
+  if(rows.length > 1) btn.closest('tr').remove();
+}
+
+function addLimitRow(){
+  const tb = document.getElementById('limitsBody');
+  const rowNum = tb.querySelectorAll('tr').length + 1;
+  const rowIndex = rowNum - 1;
+  const tr = document.createElement('tr');
+  tr.setAttribute('data-row-index', rowIndex);
+  // Get matching vehicle reg if exists
+  const vehicleRows = document.querySelectorAll('#tableBody tr');
+  const matchingReg = vehicleRows[rowIndex] ? vehicleRows[rowIndex].querySelectorAll('input')[0].value : '';
+  tr.innerHTML = `
+    <td style="text-align:center;font-weight:500;color:#555;padding:6px 4px;">${rowNum}</td>
+    <td><input type="text" placeholder="Auto-filled" value="${matchingReg}" readonly style="background:#f0f4f8;color:#555;cursor:default;"></td>
+    <td><select onchange="toggleLocationField(this)" style="border:none;background:transparent;width:100%;font-size:13px;color:#1a1a1a;padding:6px"><option value="">None</option><option>Amount (US$)</option><option>Quantity (Gallons)</option><option>Transaction (No. of Trx.)</option><option>Location</option></select></td>
+    <td>${locationSelectHTML()}</td>
+    <td><input type="text" placeholder="0.00"></td>
+    <td><input type="text" placeholder="0.00"></td>
+    <td><input type="text" placeholder="0.00"></td>
+    <td><input type="text" placeholder="0.00"></td>
+    <td><button class="del-btn" onclick="removeLimitRow(this)">×</button></td>`;
+  tb.appendChild(tr);
+}
+
+function locationSelectHTML(){
+  return '<select class="loc-select" disabled style="border:none;background:transparent;width:100%;font-size:13px;color:#1a1a1a;padding:6px"><option value="" selected>-- Select --</option><option>72ND Junction</option><option>9TH St. Sinkor</option><option>Battery Factory</option><option>Bong Mines Bridge</option><option>Clara Town</option><option>Coca Cola Factory</option><option>Duport Road</option><option>ELWA</option><option>Ganta</option><option>Gbarnga</option><option>Jacob Town</option><option>Klay</option><option>Lynch Street</option><option>R2</option><option>SD Cooper</option><option>Vamouma</option></select>';
+}
+
+function toggleLocationField(selectEl){
+  const row = selectEl.closest('tr');
+  if(!row) return;
+  const locSelect = row.querySelector('.loc-select');
+  if(!locSelect) return;
+  if(selectEl.value === 'Location'){
+    locSelect.disabled = false;
+  } else {
+    locSelect.disabled = true;
+    locSelect.selectedIndex = 0;
+  }
+}
+
+function syncRegToLimits(input) {
+  // Find the row index of this input in the vehicle table
+  const vehicleRows = document.querySelectorAll('#tableBody tr');
+  let rowIndex = -1;
+  vehicleRows.forEach((row, i) => {
+    if (row.contains(input)) rowIndex = i;
+  });
+  if (rowIndex === -1) return;
+
+  // Find the matching row in the limits table by data-row-index attribute
+  const limitRow = document.querySelector('#limitsBody tr[data-row-index="' + rowIndex + '"]');
+  if (limitRow) {
+    const limitRegInput = limitRow.querySelectorAll('input')[0];
+    if (limitRegInput) limitRegInput.value = input.value;
+  }
+}
+
+function syncRowsToCardCount(val) {
+  const count = parseInt(val);
+  if (isNaN(count) || count < 1) return;
+
+  const vehicleBody = document.getElementById('tableBody');
+  const limitsBody = document.getElementById('limitsBody');
+
+  function makeVehicleRow(num) {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td style="text-align:center;font-weight:500;color:#555;padding:6px 4px;">${num}</td>
+      <td><input type="text" placeholder="e.g. LR-1234" oninput="syncRegToLimits(this)"></td>
+      <td><input type="text" placeholder="Name or number"></td>
+      <td><select style="border:none;background:transparent;width:100%;font-size:13px;color:#1a1a1a;padding:6px"><option value="">-</option><option>Yes</option><option>No</option></select></td>
+      <td><select style="border:none;background:transparent;width:100%;font-size:13px;color:#1a1a1a;padding:6px"><option value="">—</option><option>Diesel</option><option>Gasoline</option></select></td>
+      <td><input type="text" placeholder="e.g. Toyota Hilux"></td>
+      <td><button class="del-btn" onclick="removeRow(this)">×</button></td>`;
+    return tr;
+  }
+
+  function makeLimitRow(num) {
+    const tr = document.createElement('tr');
+    const rowIndex = num - 1;
+    tr.setAttribute('data-row-index', rowIndex);
+    // Get matching vehicle reg if exists
+    const vehicleRows = document.querySelectorAll('#tableBody tr');
+    const matchingReg = vehicleRows[rowIndex] ? vehicleRows[rowIndex].querySelectorAll('input')[0].value : '';
+    tr.innerHTML = `
+      <td style="text-align:center;font-weight:500;color:#555;padding:6px 4px;">${num}</td>
+      <td><input type="text" placeholder="Auto-filled" value="${matchingReg}" readonly style="background:#f0f4f8;color:#555;cursor:default;"></td>
+      <td><select onchange="toggleLocationField(this)" style="border:none;background:transparent;width:100%;font-size:13px;color:#1a1a1a;padding:6px"><option value="">None</option><option>Amount (US$)</option><option>Quantity (Gallons)</option><option>Transaction (No. of Trx.)</option><option>Location</option></select></td>
+      <td>${locationSelectHTML()}</td>
+      <td><input type="text" placeholder="0.00"></td>
+      <td><input type="text" placeholder="0.00"></td>
+      <td><input type="text" placeholder="0.00"></td>
+      <td><input type="text" placeholder="0.00"></td>
+      <td><button class="del-btn" onclick="removeLimitRow(this)">×</button></td>`;
+    return tr;
+  }
+
+  function syncTable(tbody, makeRow) {
+    const current = tbody.querySelectorAll('tr').length;
+    if (count > current) {
+      for (let i = current + 1; i <= count; i++) {
+        tbody.appendChild(makeRow(i));
+      }
+    } else if (count < current) {
+      const rows = tbody.querySelectorAll('tr');
+      for (let i = rows.length - 1; i >= count; i--) {
+        rows[i].remove();
+      }
+    }
+  }
+
+  syncTable(vehicleBody, makeVehicleRow);
+  syncTable(limitsBody, makeLimitRow);
+}
+</script>
+</body>
+</html>
