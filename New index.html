@@ -42,6 +42,23 @@
   .del-btn { background: none; border: none; color: #e24b4a; cursor: pointer; font-size: 18px; padding: 4px 6px; line-height: 1; border-radius: 4px; }
   .del-btn:hover { background: #fdf0f0; }
 
+  .action-btn {
+    width: 100%; padding: 15px; color: #fff;
+    border: none; border-radius: 10px; font-size: 16px; font-weight: 600;
+    cursor: pointer; margin-top: 0.75rem; letter-spacing: .3px; transition: background .15s;
+  }
+  .action-btn.primary { background: #0C447C; }
+  .action-btn.primary:hover { background: #185FA5; }
+  .action-btn.secondary { background: #fff; color: #0C447C; border: 1.5px solid #0C447C; }
+  .action-btn.secondary:hover { background: #EBF4FF; }
+  .action-btn.danger { background: #fff; color: #c0392b; border: 1.5px solid #c0392b; }
+  .action-btn.danger:hover { background: #fdf0f0; }
+  .action-btn:disabled { background: #6b9fc2; border-color: #6b9fc2; color: #fff; cursor: not-allowed; }
+
+  .toast { display: none; border-radius: 10px; padding: 16px 20px; font-size: 14px; margin-top: 1.25rem; text-align: center; font-weight: 500; }
+  .toast.success { display: block; background: #EAF3DE; border: 1px solid #639922; color: #27500A; }
+  .toast.warning { display: block; background: #FAEEDA; border: 1px solid #BA7517; color: #633806; }
+
   @media (max-width: 600px) {
     .section { padding: 1rem 1rem; }
   }
@@ -124,6 +141,12 @@ card can only be used for Gasoline)</p>
       </table>
     </div>
     <button class="add-row-btn" onclick="addLimitRow()">+ Add row</button>
+  </div>
+
+  <div class="section">
+    <button class="action-btn primary" id="downloadBtn" onclick="generatePDF()">Download PDF</button>
+    <button class="action-btn danger" onclick="clearAllData()">Clear All Data</button>
+    <div class="toast" id="toast"></div>
   </div>
 
 </div>
@@ -266,6 +289,226 @@ function syncRowsToCardCount(val) {
 
   syncTable(vehicleBody, makeVehicleRow);
   syncTable(limitsBody, makeLimitRow);
+}
+
+function collectFormData(){
+  const vehicleRows = [];
+  document.querySelectorAll('#tableBody tr').forEach((row, i) => {
+    const inputs = row.querySelectorAll('input, select');
+    if(inputs[0] && inputs[0].value.trim()){
+      vehicleRows.push({ num: i+1, reg: inputs[0].value||'-', name: inputs[1].value||'-', restriction: inputs[2].value||'-', fuel: inputs[3].value||'-', vehicle: inputs[4].value||'-' });
+    }
+  });
+  const limitRows = [];
+  document.querySelectorAll('#limitsBody tr').forEach((row, i) => {
+    const inputs = row.querySelectorAll('input, select');
+    const hasData = Array.from(inputs).some(el => el.value && el.value.trim() !== '' && el.value !== '—' && el.value !== '-');
+    if(hasData){
+      limitRows.push({ num: i+1, reg: inputs[0].value||'-', type: inputs[1].value||'-', location: inputs[2].value||'-', trx: inputs[3].value||'-', day: inputs[4].value||'-', week: inputs[5].value||'-', month: inputs[6].value||'-' });
+    }
+  });
+  return {
+    numCards: document.getElementById('f_num_cards').value||'-',
+    vehicleRows, limitRows,
+    generatedAt: new Date().toLocaleString()
+  };
+}
+
+function showToast(msg, type){
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast ' + type;
+}
+
+function validateSection2(){
+  const numCards = document.getElementById('f_num_cards').value.trim();
+  if(!numCards){ showToast('Please enter the number of cards requested.', 'warning'); return false; }
+
+  const vehicleTableRows = document.querySelectorAll('#tableBody tr');
+  for(let i = 0; i < vehicleTableRows.length; i++){
+    const inputs = vehicleTableRows[i].querySelectorAll('input, select');
+    if(!inputs[0].value.trim()){ showToast('Row ' + (i+1) + ' in the vehicle table is missing a Registration No. (required).', 'warning'); return false; }
+    if(!inputs[1].value.trim()){ showToast('Row ' + (i+1) + ' in the vehicle table is missing a Name or Number (printed on card) (required).', 'warning'); return false; }
+  }
+  return true;
+}
+
+function loadScript(src) {
+  return new Promise((resolve, reject) => {
+    const s = document.createElement('script');
+    s.src = src;
+    s.onload = resolve;
+    s.onerror = reject;
+    document.head.appendChild(s);
+  });
+}
+
+async function ensureJsPDF() {
+  if ((window.jspdf && window.jspdf.jsPDF) || window.jsPDF) return true;
+  const cdns = [
+    'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js',
+    'https://unpkg.com/jspdf@2.5.1/dist/jspdf.umd.min.js',
+    'https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js'
+  ];
+  for (const cdn of cdns) {
+    try {
+      await loadScript(cdn);
+      if ((window.jspdf && window.jspdf.jsPDF) || window.jsPDF) return true;
+    } catch(e) {}
+  }
+  return false;
+}
+
+async function generatePDF(){
+  if(!validateSection2()) return;
+
+  const btn = document.getElementById('downloadBtn');
+  const originalText = btn.textContent;
+  btn.textContent = 'Generating PDF...';
+  btn.disabled = true;
+
+  try {
+    const loaded = await ensureJsPDF();
+    if (!loaded) {
+      showToast('Could not load PDF library. Please check your internet connection and try again.', 'warning');
+      btn.textContent = originalText;
+      btn.disabled = false;
+      return;
+    }
+
+    const data = collectFormData();
+
+    const jsPDF = (window.jspdf && window.jspdf.jsPDF) || window.jsPDF;
+    if (!jsPDF) throw new Error('jsPDF library failed to load. Please check your internet connection.');
+    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+    const W = 210; const margin = 15; const col = W - margin * 2;
+    let y = 20;
+
+    const addPageIfNeeded = (needed) => { if(y + needed > 278) { doc.addPage(); y = 15; } };
+
+    // Title
+    doc.setFontSize(15); doc.setFont('helvetica','bold'); doc.setTextColor(12,68,124);
+    doc.text('PetroTrade — Cards Info', margin, y); y += 6;
+    doc.setFontSize(9); doc.setFont('helvetica','normal'); doc.setTextColor(120,120,120);
+    doc.text('Generated: ' + data.generatedAt, margin, y); y += 10;
+
+    doc.setFontSize(9); doc.setFont('helvetica','bold'); doc.setTextColor(26,26,26);
+    doc.text('Number of cards requested: ' + data.numCards, margin, y); y += 8;
+
+    // Vehicle table
+    addPageIfNeeded(20);
+    doc.setFontSize(8); doc.setFont('helvetica','bold'); doc.setTextColor(80,80,80);
+    doc.text('Vehicle / Asset Details', margin, y); y += 5;
+    const vCols = ['#','Reg No.','Card Name/No.','Fuel Restriction','Fuel Type','Vehicle Model'];
+    const vW = [8, 28, 52, 26, 24, 26];
+    doc.setFillColor(240,244,248);
+    doc.rect(margin, y, col, 7, 'F');
+    doc.setTextColor(85,85,85); doc.setFontSize(7); doc.setFont('helvetica','bold');
+    let cx = margin;
+    vCols.forEach((c,i)=>{ doc.text(c, cx+1, y+5); cx+=vW[i]; });
+    y += 7;
+    if(data.vehicleRows.length > 0){
+      data.vehicleRows.forEach((r,idx)=>{
+        const cellValues = [String(r.num), r.reg, r.name, r.restriction, r.fuel, r.vehicle];
+        const wrappedCells = cellValues.map((v,i) => doc.splitTextToSize(String(v||'-'), vW[i] - 2));
+        const rowH = Math.max(6, Math.max(...wrappedCells.map(w => w.length)) * 5 + 2);
+        addPageIfNeeded(rowH);
+        if(idx%2===0){ doc.setFillColor(250,251,252); doc.rect(margin, y, col, rowH, 'F'); }
+        doc.setTextColor(26,26,26); doc.setFont('helvetica','normal'); doc.setFontSize(8);
+        cx = margin;
+        wrappedCells.forEach((lines, i) => {
+          doc.text(lines, cx+1, y+4);
+          cx += vW[i];
+        });
+        y += rowH;
+      });
+    } else {
+      doc.setTextColor(150,150,150); doc.setFont('helvetica','italic'); doc.setFontSize(8);
+      doc.text('No vehicles specified', margin+2, y+4);
+      y += 6;
+    }
+    y += 5;
+
+    // Limits table - always shown
+    addPageIfNeeded(20);
+    doc.setFontSize(8); doc.setFont('helvetica','bold'); doc.setTextColor(80,80,80);
+    doc.text('Card Limitations', margin, y); y += 5;
+    const lCols = ['#','Reg No.','Limit Type','Location','Per Trx','Per Day','Per Week','Per Month'];
+    const lW = [8, 24, 26, 24, 19, 19, 19, 19];
+    doc.setFillColor(240,244,248);
+    doc.rect(margin, y, col, 7, 'F');
+    doc.setTextColor(85,85,85); doc.setFontSize(7); doc.setFont('helvetica','bold');
+    let lx = margin;
+    lCols.forEach((c,i)=>{ doc.text(c, lx+1, y+5); lx+=lW[i]; });
+    y += 7;
+    if(data.limitRows.length > 0){
+      data.limitRows.forEach((r,idx)=>{
+        const cellValues = [String(r.num),r.reg,r.type,r.location,r.trx,r.day,r.week,r.month];
+        const wrappedCells = cellValues.map((v,i) => doc.splitTextToSize(String(v||'-'), lW[i] - 2));
+        const rowH = Math.max(6, Math.max(...wrappedCells.map(w => w.length)) * 5 + 2);
+        addPageIfNeeded(rowH);
+        if(idx%2===0){ doc.setFillColor(250,251,252); doc.rect(margin, y, col, rowH, 'F'); }
+        doc.setTextColor(26,26,26); doc.setFont('helvetica','normal'); doc.setFontSize(8);
+        lx = margin;
+        wrappedCells.forEach((lines, i) => {
+          doc.text(lines, lx+1, y+4);
+          lx += lW[i];
+        });
+        y += rowH;
+      });
+    } else {
+      doc.setTextColor(150,150,150); doc.setFont('helvetica','italic'); doc.setFontSize(8);
+      doc.text('No limitations specified', margin+2, y+4);
+      y += 6;
+    }
+
+    // Footer on every page
+    const total = doc.internal.getNumberOfPages();
+    for(let p=1;p<=total;p++){
+      doc.setPage(p);
+      doc.setFillColor(12,68,124);
+      doc.rect(0, 287, W, 10, 'F');
+      doc.setFontSize(7); doc.setTextColor(180,210,240);
+      doc.text('Petro Trade Inc. - Cards Info - Confidential', margin, 293);
+      doc.text('Page '+p+' of '+total, W-margin, 293, { align:'right' });
+    }
+
+    doc.save('PetroTrade_CardsInfo_' + Date.now() + '.pdf');
+
+    showToast('PDF downloaded successfully!', 'success');
+    btn.textContent = originalText;
+    btn.disabled = false;
+
+  } catch(err){
+    console.error('PDF error:', err);
+    showToast('Failed to generate PDF: ' + err.message, 'warning');
+    btn.textContent = originalText;
+    btn.disabled = false;
+  }
+}
+
+function clearAllData() {
+  if (!confirm('Are you sure you want to clear all entered data? This cannot be undone.')) return;
+
+  document.getElementById('f_num_cards').value = '';
+
+  // Reset vehicle table to 1 row
+  const vehicleBody = document.getElementById('tableBody');
+  while (vehicleBody.rows.length > 1) vehicleBody.deleteRow(vehicleBody.rows.length - 1);
+  vehicleBody.querySelectorAll('input').forEach(el => el.value = '');
+  vehicleBody.querySelectorAll('select').forEach(el => el.selectedIndex = 0);
+
+  // Reset limits table to 1 row
+  const limitsBody = document.getElementById('limitsBody');
+  while (limitsBody.rows.length > 1) limitsBody.deleteRow(limitsBody.rows.length - 1);
+  limitsBody.querySelectorAll('input').forEach(el => el.value = '');
+  limitsBody.querySelectorAll('select').forEach(el => el.selectedIndex = 0);
+  limitsBody.querySelectorAll('.loc-select').forEach(el => el.disabled = true);
+
+  // Hide toast
+  const t = document.getElementById('toast');
+  t.className = 'toast';
+  t.textContent = '';
 }
 </script>
 </body>
