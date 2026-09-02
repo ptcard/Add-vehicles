@@ -27,6 +27,10 @@
   }
   .required { color: #e24b4a; }
 
+  .signature-box-wrap { position: relative; border: 1px solid #d0d5dd; border-radius: 8px; background: #fafbfc; overflow: hidden; }
+  .signature-canvas { display: block; width: 100%; height: 180px; touch-action: none; cursor: crosshair; }
+  .signature-placeholder { position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); color: #b7c0cc; font-size: 13px; pointer-events: none; }
+
   .table-wrapper { overflow-x: auto; }
   table.data-table { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 13px; min-width: 560px; }
   table.data-table th { background: #f0f4f8; color: #555; font-weight: 600; font-size: 11px; padding: 9px 6px; border: 1px solid #dde2ea; text-align: left; text-transform: uppercase; letter-spacing: .3px; word-break: break-word; overflow-wrap: break-word; hyphens: auto; }
@@ -66,6 +70,17 @@
 </head>
 <body>
 <div class="page-wrap">
+
+  <!-- Entity/Individual Name -->
+  <div class="section">
+    <div class="section-title">1. Entity/Individual Name</div>
+    <div class="field-grid">
+      <div class="field full">
+        <label>Entity/Individual Name <span class="required">*</span></label>
+        <input type="text" id="f_entity_name" placeholder="e.g. ABC Logistics Inc. or John Doe">
+      </div>
+    </div>
+  </div>
 
   <!-- Cards Info -->
   <div class="section">
@@ -141,6 +156,21 @@ card can only be used for Gasoline)</p>
       </table>
     </div>
     <button class="add-row-btn" onclick="addLimitRow()">+ Add row</button>
+  </div>
+
+  <!-- Signature -->
+  <div class="section">
+    <div class="section-title">3. Signature</div>
+    <div class="field-grid">
+      <div class="field full">
+        <label>Signature <span class="required">*</span></label>
+        <div class="signature-box-wrap">
+          <canvas id="signatureCanvas" class="signature-canvas"></canvas>
+          <div class="signature-placeholder" id="signaturePlaceholder">Sign here</div>
+        </div>
+        <button type="button" class="add-row-btn" id="clearSignatureBtn" onclick="clearSignature()" style="margin-top:8px;">Clear signature</button>
+      </div>
+    </div>
   </div>
 
   <div class="section">
@@ -291,6 +321,79 @@ function syncRowsToCardCount(val) {
   syncTable(limitsBody, makeLimitRow);
 }
 
+let sigCtx = null, sigDrawing = false, sigHasContent = false, sigLastX = 0, sigLastY = 0;
+
+function initSignaturePad(){
+  const canvas = document.getElementById('signatureCanvas');
+  if(!canvas) return;
+
+  function resizeCanvas(){
+    const rect = canvas.getBoundingClientRect();
+    const ratio = window.devicePixelRatio || 1;
+    const preserved = sigHasContent ? canvas.toDataURL('image/png') : null;
+    canvas.width = rect.width * ratio;
+    canvas.height = rect.height * ratio;
+    sigCtx = canvas.getContext('2d');
+    sigCtx.scale(ratio, ratio);
+    sigCtx.lineWidth = 2;
+    sigCtx.lineCap = 'round';
+    sigCtx.strokeStyle = '#1a1a1a';
+    if(preserved){
+      const img = new Image();
+      img.onload = () => sigCtx.drawImage(img, 0, 0, rect.width, rect.height);
+      img.src = preserved;
+    }
+  }
+  resizeCanvas();
+  window.addEventListener('resize', resizeCanvas);
+
+  function getPos(e){
+    const rect = canvas.getBoundingClientRect();
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+    return { x: clientX - rect.left, y: clientY - rect.top };
+  }
+
+  function start(e){
+    e.preventDefault();
+    sigDrawing = true;
+    const pos = getPos(e);
+    sigLastX = pos.x; sigLastY = pos.y;
+    const ph = document.getElementById('signaturePlaceholder');
+    if(ph) ph.style.display = 'none';
+  }
+  function move(e){
+    if(!sigDrawing) return;
+    e.preventDefault();
+    const pos = getPos(e);
+    sigCtx.beginPath();
+    sigCtx.moveTo(sigLastX, sigLastY);
+    sigCtx.lineTo(pos.x, pos.y);
+    sigCtx.stroke();
+    sigLastX = pos.x; sigLastY = pos.y;
+    sigHasContent = true;
+  }
+  function end(){ sigDrawing = false; }
+
+  canvas.addEventListener('mousedown', start);
+  canvas.addEventListener('mousemove', move);
+  window.addEventListener('mouseup', end);
+  canvas.addEventListener('touchstart', start, { passive: false });
+  canvas.addEventListener('touchmove', move, { passive: false });
+  canvas.addEventListener('touchend', end);
+}
+
+function clearSignature(){
+  const canvas = document.getElementById('signatureCanvas');
+  if(!canvas || !sigCtx) return;
+  sigCtx.clearRect(0, 0, canvas.width, canvas.height);
+  sigHasContent = false;
+  const ph = document.getElementById('signaturePlaceholder');
+  if(ph) ph.style.display = '';
+}
+
+initSignaturePad();
+
 function collectFormData(){
   const vehicleRows = [];
   document.querySelectorAll('#tableBody tr').forEach((row, i) => {
@@ -308,6 +411,7 @@ function collectFormData(){
     }
   });
   return {
+    entityName: document.getElementById('f_entity_name').value||'-',
     numCards: document.getElementById('f_num_cards').value||'-',
     vehicleRows, limitRows,
     generatedAt: new Date().toLocaleString()
@@ -321,6 +425,9 @@ function showToast(msg, type){
 }
 
 function validateSection2(){
+  const entityName = document.getElementById('f_entity_name').value.trim();
+  if(!entityName){ showToast('Please enter the Entity/Individual Name.', 'warning'); return false; }
+
   const numCards = document.getElementById('f_num_cards').value.trim();
   if(!numCards){ showToast('Please enter the number of cards requested.', 'warning'); return false; }
 
@@ -330,6 +437,9 @@ function validateSection2(){
     if(!inputs[0].value.trim()){ showToast('Row ' + (i+1) + ' in the vehicle table is missing a Registration No. (required).', 'warning'); return false; }
     if(!inputs[1].value.trim()){ showToast('Row ' + (i+1) + ' in the vehicle table is missing a Name or Number (printed on card) (required).', 'warning'); return false; }
   }
+
+  if(!sigHasContent){ showToast('Please provide your signature before generating the PDF.', 'warning'); return false; }
+
   return true;
 }
 
@@ -391,6 +501,11 @@ async function generatePDF(){
     doc.text('PetroTrade — Cards Info', margin, y); y += 6;
     doc.setFontSize(9); doc.setFont('helvetica','normal'); doc.setTextColor(120,120,120);
     doc.text('Generated: ' + data.generatedAt, margin, y); y += 10;
+
+    doc.setFontSize(11); doc.setFont('helvetica','bold'); doc.setTextColor(26,26,26);
+    doc.text('Entity/Individual Name:', margin, y); y += 6;
+    doc.setFontSize(10); doc.setFont('helvetica','normal'); doc.setTextColor(26,26,26);
+    doc.text(data.entityName, margin, y); y += 16;
 
     doc.setFontSize(9); doc.setFont('helvetica','bold'); doc.setTextColor(26,26,26);
     doc.text('Number of cards requested: ' + data.numCards, margin, y); y += 8;
@@ -461,6 +576,33 @@ async function generatePDF(){
       doc.text('No limitations specified', margin+2, y+4);
       y += 6;
     }
+    y += 5;
+
+    // Signature
+    addPageIfNeeded(45);
+    doc.setFontSize(8); doc.setFont('helvetica','bold'); doc.setTextColor(80,80,80);
+    doc.text('Signature', margin, y); y += 5;
+    const sigCanvas = document.getElementById('signatureCanvas');
+    if(sigCanvas && sigHasContent){
+      try {
+        const imgData = sigCanvas.toDataURL('image/png');
+        const imgW = 70; const imgH = imgW * (sigCanvas.height / sigCanvas.width);
+        doc.addImage(imgData, 'PNG', margin, y, imgW, imgH);
+        y += imgH + 2;
+      } catch(e){
+        doc.setTextColor(150,150,150); doc.setFont('helvetica','italic'); doc.setFontSize(8);
+        doc.text('Signature could not be embedded', margin+2, y+4);
+        y += 6;
+      }
+    } else {
+      doc.setTextColor(150,150,150); doc.setFont('helvetica','italic'); doc.setFontSize(8);
+      doc.text('No signature provided', margin+2, y+4);
+      y += 6;
+    }
+    doc.setDrawColor(200,205,212);
+    doc.line(margin, y, margin + 70, y); y += 4;
+    doc.setFontSize(7); doc.setFont('helvetica','normal'); doc.setTextColor(120,120,120);
+    doc.text('Signed by: ' + data.entityName, margin, y); y += 8;
 
     // Footer on every page
     const total = doc.internal.getNumberOfPages();
@@ -490,6 +632,7 @@ async function generatePDF(){
 function clearAllData() {
   if (!confirm('Are you sure you want to clear all entered data? This cannot be undone.')) return;
 
+  document.getElementById('f_entity_name').value = '';
   document.getElementById('f_num_cards').value = '';
 
   // Reset vehicle table to 1 row
@@ -504,6 +647,9 @@ function clearAllData() {
   limitsBody.querySelectorAll('input').forEach(el => el.value = '');
   limitsBody.querySelectorAll('select').forEach(el => el.selectedIndex = 0);
   limitsBody.querySelectorAll('.loc-select').forEach(el => el.disabled = true);
+
+  // Reset signature
+  clearSignature();
 
   // Hide toast
   const t = document.getElementById('toast');
