@@ -163,6 +163,10 @@ card can only be used for Gasoline)</p>
     <div class="section-title">3. Signature</div>
     <div class="field-grid">
       <div class="field full">
+        <label>Name <span class="required">*</span></label>
+        <input type="text" id="f_sig_name" placeholder="Full name">
+      </div>
+      <div class="field full">
         <label>Signature <span class="required">*</span></label>
         <div class="signature-box-wrap">
           <canvas id="signatureCanvas" class="signature-canvas"></canvas>
@@ -412,6 +416,7 @@ function collectFormData(){
   });
   return {
     entityName: document.getElementById('f_entity_name').value||'-',
+    sigName: document.getElementById('f_sig_name').value||'-',
     numCards: document.getElementById('f_num_cards').value||'-',
     vehicleRows, limitRows,
     generatedAt: new Date().toLocaleString()
@@ -437,6 +442,9 @@ function validateSection2(){
     if(!inputs[0].value.trim()){ showToast('Row ' + (i+1) + ' in the vehicle table is missing a Registration No. (required).', 'warning'); return false; }
     if(!inputs[1].value.trim()){ showToast('Row ' + (i+1) + ' in the vehicle table is missing a Name or Number (printed on card) (required).', 'warning'); return false; }
   }
+
+  const sigName = document.getElementById('f_sig_name').value.trim();
+  if(!sigName){ showToast('Please enter the Name in the Signature section.', 'warning'); return false; }
 
   if(!sigHasContent){ showToast('Please provide your signature before generating the PDF.', 'warning'); return false; }
 
@@ -602,7 +610,7 @@ async function generatePDF(){
     doc.setDrawColor(200,205,212);
     doc.line(margin, y, margin + 70, y); y += 4;
     doc.setFontSize(7); doc.setFont('helvetica','normal'); doc.setTextColor(120,120,120);
-    doc.text('Signed by: ' + data.entityName, margin, y); y += 8;
+    doc.text('Signed by: ' + data.sigName, margin, y); y += 8;
 
     // Footer on every page
     const total = doc.internal.getNumberOfPages();
@@ -649,6 +657,7 @@ function clearAllData() {
   limitsBody.querySelectorAll('.loc-select').forEach(el => el.disabled = true);
 
   // Reset signature
+  document.getElementById('f_sig_name').value = '';
   clearSignature();
 
   // Hide toast
