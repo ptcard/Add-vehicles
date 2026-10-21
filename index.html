@@ -507,6 +507,36 @@ function validateSection2(){
   return true;
 }
 
+// Crop the signature to its drawn area, shrink it, and export as a small JPEG
+function getCompactSignature(canvas){
+  const ctx = canvas.getContext('2d');
+  const w = canvas.width, h = canvas.height;
+  const px = ctx.getImageData(0, 0, w, h).data;
+  let minX = w, minY = h, maxX = -1, maxY = -1;
+  for(let yy = 0; yy < h; yy++){
+    for(let xx = 0; xx < w; xx++){
+      if(px[(yy * w + xx) * 4 + 3] > 10){
+        if(xx < minX) minX = xx; if(xx > maxX) maxX = xx;
+        if(yy < minY) minY = yy; if(yy > maxY) maxY = yy;
+      }
+    }
+  }
+  if(maxX < 0){ minX = 0; minY = 0; maxX = w - 1; maxY = h - 1; }
+  const pad = 10;
+  minX = Math.max(0, minX - pad); minY = Math.max(0, minY - pad);
+  maxX = Math.min(w - 1, maxX + pad); maxY = Math.min(h - 1, maxY + pad);
+  const cw = maxX - minX + 1, ch = maxY - minY + 1;
+  const scale = Math.min(1, 500 / cw);
+  const out = document.createElement('canvas');
+  out.width = Math.max(1, Math.round(cw * scale));
+  out.height = Math.max(1, Math.round(ch * scale));
+  const octx = out.getContext('2d');
+  octx.fillStyle = '#ffffff';
+  octx.fillRect(0, 0, out.width, out.height);
+  octx.drawImage(canvas, minX, minY, cw, ch, 0, 0, out.width, out.height);
+  return { data: out.toDataURL('image/jpeg', 0.7), w: out.width, h: out.height };
+}
+
 function loadScript(src) {
   return new Promise((resolve, reject) => {
     const s = document.createElement('script');
@@ -554,7 +584,7 @@ async function generatePDF(){
 
     const jsPDF = (window.jspdf && window.jspdf.jsPDF) || window.jsPDF;
     if (!jsPDF) throw new Error('jsPDF library failed to load. Please check your internet connection.');
-    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4', compress: true });
     const W = 210; const margin = 15; const col = W - margin * 2;
     let y = 20;
 
@@ -649,9 +679,10 @@ async function generatePDF(){
     const sigCanvas = document.getElementById('signatureCanvas');
     if(sigCanvas && sigHasContent){
       try {
-        const imgData = sigCanvas.toDataURL('image/png');
-        const imgW = 70; const imgH = imgW * (sigCanvas.height / sigCanvas.width);
-        doc.addImage(imgData, 'PNG', margin, y, imgW, imgH);
+        const sig = getCompactSignature(sigCanvas);
+        const imgW = 60; const imgH = Math.min(30, imgW * (sig.h / sig.w));
+        const drawW = imgH * (sig.w / sig.h);
+        doc.addImage(sig.data, 'JPEG', margin, y, drawW, imgH, undefined, 'FAST');
         y += imgH + 2;
       } catch(e){
         doc.setTextColor(150,150,150); doc.setFont('helvetica','italic'); doc.setFontSize(8);
